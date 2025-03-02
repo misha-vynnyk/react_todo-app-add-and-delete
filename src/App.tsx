@@ -13,6 +13,7 @@ export const App: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [tempoTodo, setTempoTodo] = useState<Todo | null>(null);
   const [leftItems, setLeftItems] = useState(0);
+  const [hasCompletedTodos, setHasCompletedTodos] = useState(false);
 
   const [todoTitle, setTodoTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,13 +24,24 @@ export const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   //#endregion state
 
-  // eslint-disable-next-line no-console
-  console.log('TempoTodo:', tempoTodo);
-  // eslint-disable-next-line no-console
-  console.log('TodoTitle:', todoTitle);
-
   //#region function
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const completedTodos = useMemo(
+    () => todos.filter(todo => todo.completed && todo.id),
+    [todos],
+  );
+
+  const filteredTodos = useMemo(() => {
+    switch (filterTerm) {
+      case 'completed':
+        return todos.filter(todo => todo.completed);
+      case 'active':
+        return todos.filter(todo => !todo.completed);
+      default:
+        return todos;
+    }
+  }, [todos, filterTerm]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -43,6 +55,10 @@ export const App: React.FC = () => {
     setLeftItems(activeCount);
   }, [todos]);
 
+  useEffect(() => {
+    setHasCompletedTodos(completedTodos.length > 0);
+  }, [completedTodos]);
+
   function loadTodos() {
     setIsLoading(true);
     todoService
@@ -55,16 +71,9 @@ export const App: React.FC = () => {
       .finally(() => setIsLoading(false));
   }
 
-  const filteredTodos = useMemo(() => {
-    switch (filterTerm) {
-      case 'completed':
-        return todos.filter(todo => todo.completed);
-      case 'active':
-        return todos.filter(todo => !todo.completed);
-      default:
-        return todos;
-    }
-  }, [todos, filterTerm]);
+  useEffect(() => {
+    loadTodos();
+  }, []);
 
   function addTodo({ title, userId, completed }: Todo) {
     setIsLoadingTodo(userId);
@@ -83,6 +92,7 @@ export const App: React.FC = () => {
         setIsLoading(false);
         setIsLoadingTodo(null);
         setTempoTodo(null);
+
         setTimeout(() => setErrorMessage(''), 3000);
       });
   }
@@ -116,12 +126,32 @@ export const App: React.FC = () => {
         setErrorMessage('Unable to update todo');
         setTimeout(() => setErrorMessage(''), 3000);
       })
-      .finally(() => setIsLoadingTodo(null));
+      .finally(() => {
+        setIsLoadingTodo(null);
+      });
   }
 
-  useEffect(() => {
-    loadTodos();
-  }, []);
+  function clearCompletedTodos() {
+    setIsLoading(true);
+
+    Promise.allSettled(
+      completedTodos.map(todo => {
+        if (todo.id) {
+          deleteTodo(todo.id);
+        }
+      }),
+    )
+      .then(results => {
+        if (results.some(result => result.status === 'rejected')) {
+          setErrorMessage('Some todos could not be deleted');
+          setTimeout(() => setErrorMessage(''), 3000);
+        }
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }
+
   //#endregion function
 
   //#region handler
@@ -181,6 +211,10 @@ export const App: React.FC = () => {
 
   function handleFiltered(filter: string) {
     setFilterTerm(filter);
+  }
+
+  function handleClearCompletedTodos() {
+    clearCompletedTodos();
   }
 
   //#endregion handler
@@ -271,9 +305,10 @@ export const App: React.FC = () => {
               {/* this button should be disabled if there are no completed todos */}
               <button
                 type="button"
+                disabled={!hasCompletedTodos}
                 className="todoapp__clear-completed"
                 data-cy="ClearCompletedButton"
-                onClick={() => handleFiltered('')}
+                onClick={handleClearCompletedTodos}
               >
                 Clear completed
               </button>
