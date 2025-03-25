@@ -7,9 +7,15 @@ import { USER_ID } from './api/todos';
 import { Todo } from './types/Todo';
 import * as todoService from './api/todos';
 import TodosList from './components/TodosList';
+import Footer from './components/Footer';
+
+export enum FilterTerm {
+  All = 'All',
+  Completed = 'Completed',
+  Active = 'Active',
+}
 
 export const App: React.FC = () => {
-  //#region state
   const [todos, setTodos] = useState<Todo[]>([]);
   const [tempoTodo, setTempoTodo] = useState<Todo | null>(null);
   const [leftItems, setLeftItems] = useState(0);
@@ -19,12 +25,10 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingTodo, setIsLoadingTodo] = useState<number | null>(null);
 
-  const [filterTerm, setFilterTerm] = useState('');
+  const [filterTerm, setFilterTerm] = useState('All');
 
   const [errorMessage, setErrorMessage] = useState('');
-  //#endregion state
 
-  //#region function
   const inputRef = useRef<HTMLInputElement>(null);
 
   const completedTodos = useMemo(
@@ -34,9 +38,9 @@ export const App: React.FC = () => {
 
   const filteredTodos = useMemo(() => {
     switch (filterTerm) {
-      case 'completed':
+      case FilterTerm.Completed:
         return todos.filter(todo => todo.completed);
-      case 'active':
+      case FilterTerm.Active:
         return todos.filter(todo => !todo.completed);
       default:
         return todos;
@@ -83,10 +87,11 @@ export const App: React.FC = () => {
       .createTodo({ title, userId, completed })
       .then(newTodo => {
         setTodos(currentTodos => [...currentTodos, newTodo]);
+        setTodoTitle('');
       })
       .catch(() => {
-        setErrorMessage('Unable to add todos');
-        setTimeout(() => setErrorMessage(''), 3000);
+        setErrorMessage('Unable to add a todo');
+        setTimeout(() => inputRef.current?.focus(), 0);
       })
       .finally(() => {
         setIsLoading(false);
@@ -105,7 +110,7 @@ export const App: React.FC = () => {
         setTodos(currentTodo => currentTodo.filter(todo => todo.id !== todoId));
       })
       .catch(() => {
-        setErrorMessage('Unable to delete todos');
+        setErrorMessage('Unable to delete a todo');
         setTimeout(() => setErrorMessage(''), 3000);
       })
       .finally(() => setIsLoadingTodo(null));
@@ -123,7 +128,7 @@ export const App: React.FC = () => {
     todoService
       .updateTodo(todoId, newStatus)
       .catch(() => {
-        setErrorMessage('Unable to update todo');
+        setErrorMessage('Unable to update a todo');
         setTimeout(() => setErrorMessage(''), 3000);
       })
       .finally(() => {
@@ -152,10 +157,6 @@ export const App: React.FC = () => {
       });
   }
 
-  //#endregion function
-
-  //#region handler
-
   function handleCloseErrorMessage() {
     setErrorMessage('');
   }
@@ -171,7 +172,7 @@ export const App: React.FC = () => {
     }
 
     const newTodo = {
-      title: todoTitle,
+      title: todoTitle.trim(),
       userId: USER_ID,
       completed: false,
     };
@@ -185,7 +186,6 @@ export const App: React.FC = () => {
 
     setTempoTodo(tempoNewTodo);
 
-    setTodoTitle('');
     addTodo(newTodo);
   }
 
@@ -217,8 +217,6 @@ export const App: React.FC = () => {
     clearCompletedTodos();
   }
 
-  //#endregion handler
-
   if (!USER_ID) {
     return <UserWarning />;
   }
@@ -236,7 +234,6 @@ export const App: React.FC = () => {
             data-cy="ToggleAllButton"
           />
 
-          {/* Add a todo on form submit */}
           <form onSubmit={handlerAddTodo}>
             <input
               ref={inputRef}
@@ -262,57 +259,13 @@ export const App: React.FC = () => {
               handleDeleteTodo={handleDeleteTodo}
             />
 
-            <footer className="todoapp__footer" data-cy="Footer">
-              <span className="todo-count" data-cy="TodosCounter">
-                {leftItems} items left
-              </span>
-
-              <nav className="filter" data-cy="Filter">
-                <a
-                  href="#/"
-                  className={classNames('filter__link', {
-                    selected: filterTerm === '',
-                  })}
-                  data-cy="FilterLinkAll"
-                  onClick={() => handleFiltered('')}
-                >
-                  All
-                </a>
-
-                <a
-                  href="#/active"
-                  className={classNames('filter__link', {
-                    selected: filterTerm === 'active',
-                  })}
-                  data-cy="FilterLinkActive"
-                  onClick={() => handleFiltered('active')}
-                >
-                  Active
-                </a>
-
-                <a
-                  href="#/completed"
-                  className={classNames('filter__link', {
-                    selected: filterTerm === 'completed',
-                  })}
-                  data-cy="FilterLinkCompleted"
-                  onClick={() => handleFiltered('completed')}
-                >
-                  Completed
-                </a>
-              </nav>
-
-              {/* this button should be disabled if there are no completed todos */}
-              <button
-                type="button"
-                disabled={!hasCompletedTodos}
-                className="todoapp__clear-completed"
-                data-cy="ClearCompletedButton"
-                onClick={handleClearCompletedTodos}
-              >
-                Clear completed
-              </button>
-            </footer>
+            <Footer
+              leftItems={leftItems}
+              handleClearCompletedTodos={handleClearCompletedTodos}
+              hasCompletedTodos={hasCompletedTodos}
+              handleFiltered={handleFiltered}
+              filterTerm={filterTerm}
+            />
           </>
         )}
       </div>
@@ -324,13 +277,13 @@ export const App: React.FC = () => {
           { hidden: !errorMessage },
         )}
       >
+        {errorMessage}
         <button
           data-cy="HideErrorButton"
           type="button"
           className="delete"
           onClick={handleCloseErrorMessage}
         />
-        {errorMessage}
       </div>
     </div>
   );
